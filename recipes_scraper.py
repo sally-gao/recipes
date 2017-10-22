@@ -35,11 +35,11 @@ urls = ["http://allrecipes.com/recipe/"+str(id) for id in ids]
 
 pages = []
 
-for url in urls[700:800]:
+for url in urls[1200:1300]:
 
     time.sleep(5)
 
-    recipe = requests.get(url, headers={'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv:32.0) Gecko/20100101 Firefox/32.0'})
+    recipe = requests.get(url, headers={'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.10; rv:32.0) Gecko/20100101 Firefox/32.0'})
     soup = BeautifulSoup(recipe.text, 'lxml')
 
     if soup.find(content="Allrecipes - Server Error"):
@@ -129,11 +129,11 @@ recipes_df = pd.DataFrame(rows_list, columns=column_headers)
 file = '/Users/sally/Projects/recipes/recipes.csv'
 
 if os.path.isfile(file):
-    outfile = open('/Users/sally/Projects/recipes/recipes.csv', 'a')
+    outfile = open(file, 'a')
     recipes_df.to_csv(outfile, index=False, encoding='utf-8', header=False)
     outfile.close()
 
 else:
-    outfile = open('/Users/sally/Projects/recipes/recipes.csv', 'w')
+    outfile = open(file, 'w')
     recipes_df.to_csv(outfile, index=False, encoding='utf-8')
     outfile.close()
