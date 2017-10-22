@@ -35,11 +35,11 @@ urls = ["http://allrecipes.com/recipe/"+str(id) for id in ids]
 
 pages = []
 
-for url in urls[238:300]:
+for url in urls[700:800]:
 
     time.sleep(5)
 
-    recipe = requests.get(url, headers={'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv:32.0) Gecko/20100101 Firefox/32.0',})
+    recipe = requests.get(url, headers={'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv:32.0) Gecko/20100101 Firefox/32.0'})
     soup = BeautifulSoup(recipe.text, 'lxml')
 
     if soup.find(content="Allrecipes - Server Error"):
@@ -102,7 +102,7 @@ for page in pages:
         directions.append(direction.text)
 
     # store row as dictionary
-    testdict = {'DishName':dish_name,
+    newdict = {'DishName':dish_name,
                 'Rating': rating,
                 'ReviewCount': review_count,
                 'Submitter': submitter,
@@ -115,7 +115,7 @@ for page in pages:
                 'Ingredients': ingredients,
                 'Directions': directions}
 
-    rows_list.append(testdict)
+    rows_list.append(newdict)
 
 
 # create dataframe from rows_list
