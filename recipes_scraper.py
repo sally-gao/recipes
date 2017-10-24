@@ -4,6 +4,7 @@ import time
 import pandas as pd
 import re
 import os
+import random
 
 # list of potentially valid recipe IDs
 ids = list(range(6698, 6820, 3))
@@ -27,19 +28,28 @@ ids.extend(list(range(26692, 27072, 3)))
 ids.extend(list(range(50435, 50644, 3)))
 ids.extend(list(range(51283, 51711, 7)))
 ids.extend(list(range(65894, 66069, 3)))
-ids.extend(list(range(78299, 78555, 5)))
 ids.extend(list(range(80388, 86230, 50)))
+ids.extend(list(range(143082, 143281, 2)))
+ids.extend(list(range(217981, 218929, 3)))
+ids.extend(list(range(232127, 232529, 3)))
+ids.extend(list(range(238654, 240001, 10)))
 
+
+user_agent_list = ['Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36',
+                   'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36',
+                   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36',
+                   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/604.1.38 (KHTML, like Gecko) Version/11.0 Safari/604.1.38',
+                   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.113 Safari/537.36']
 
 urls = ["http://allrecipes.com/recipe/"+str(id) for id in ids]
 
 pages = []
 
-for url in urls[1200:1300]:
+for url in urls[2700:2800]:
 
     time.sleep(5)
 
-    recipe = requests.get(url, headers={'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.10; rv:32.0) Gecko/20100101 Firefox/32.0'})
+    recipe = requests.get(url, headers={'user-agent': random.choice(user_agent_list)})
     soup = BeautifulSoup(recipe.text, 'lxml')
 
     if soup.find(content="Allrecipes - Server Error"):
