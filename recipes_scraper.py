@@ -33,6 +33,10 @@ ids.extend(list(range(143082, 143281, 2)))
 ids.extend(list(range(217981, 218929, 3)))
 ids.extend(list(range(232127, 232529, 3)))
 ids.extend(list(range(238654, 240001, 10)))
+ids.extend(list(range(240007, 240695, 3)))
+ids.extend(list(range(245442, 245666, 3)))
+ids.extend(list(range(246274, 246629, 3)))
+ids.extend(list(range(255277, 256398, 3)))
 
 
 user_agent_list = ['Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36',
@@ -45,7 +49,7 @@ urls = ["http://allrecipes.com/recipe/"+str(id) for id in ids]
 
 pages = []
 
-for url in urls[2700:2800]:
+for url in urls[3300:3400]:
 
     time.sleep(5)
 
@@ -53,6 +57,9 @@ for url in urls[2700:2800]:
     soup = BeautifulSoup(recipe.text, 'lxml')
 
     if soup.find(content="Allrecipes - Server Error"):
+        continue
+    
+    elif soup.find(content="Allrecipes - File Not Found"):
         continue
 
     elif soup.find("meta").attrs['content']=='Johnsonville® Three Cheese Italian Style Chicken Sausage Skillet Pizza Recipe':
