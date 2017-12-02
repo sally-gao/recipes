@@ -1,6 +1,7 @@
 # Allrecipes.com Ingredient Analysis
 
 This is an ongoing data analysis project. 
+
 **Steps:**
 1. Web scraping (DONE)
 2. Data cleaning and processing (ONGOING)
