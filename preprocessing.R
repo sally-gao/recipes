@@ -24,7 +24,7 @@ recipes_filtered <- recipes_filtered %>%
 
 ## EXTRACT INGREDIENTS AND CORRESPONDING AMOUNTS ====================================================================
 
-measures <- "(cup|teaspoon|tablespoon|can|pound|package|clove|dash|sprig|pinch|slice|quart|drop|stalk|liter|milliliter|gallon|pint)"
+measures <- "(cup|teaspoon|tablespoon| can|pound|package|clove|dash|sprig|pinch|slice|quart|drop|stalk|liter|milliliter|gallon|pint|bottle)"
 tomatch <- paste("([[:digit:][:space:]a-z/().]+", measures, "s?[)]? )|([0-9]+[[:space:][:digit:]/]+ )|([0-9]+ )", sep="")
 
 split_amt <- function(strlist) {
@@ -88,7 +88,7 @@ wordsToRemove <- c("ground", "grated", "all-purpose", "melted", "minced", "softe
                    "heated", "cored", "powdered", "raw", "thickly", "very", "reduced-fat", "ripe", "roasted", "halved",
                    "shelled", "smoked", "square", "squares", "squeezed", "toasted", "deveined", "thick", "-", "or",
                    "more", "semisweet", "meat", "stewed", "thin", "cut", "thick-cut", "chops", "spareribs", "tenderloin",
-                   "loin", "ribs", "roast", "sirloin", "shoulder", "mild", "smashed", "roughly", "pressed")
+                   "loin", "ribs", "roast", "sirloin", "shoulder", "mild", "smashed", "roughly", "pressed", "chilled")
 
 # pattern to match common phrases and anything in parentheses
 pattern <- "( to taste| as needed| cut into| for decoration| for dusting)|(\\(.*\\) ?)|( cut.*(strips|pieces|wedges|chunks|cubes|slices))"
@@ -171,7 +171,7 @@ mostly.volumes <- function(ingredient.amts) {
 }
 
 is.mostly.volumes <- rapply(amts, mostly.volumes, how="unlist")
-sum(is.mostly.volumes) # 238
+sum(is.mostly.volumes) # 237
 
 # Find all ingredients for which over 70% of amounts (not including "") are specified in weight
 mostly.weights <- function(ingredient.amts) {
@@ -277,7 +277,54 @@ weights.amts <- rapply(weights.amts, process.weights, how="replace")
 
 ## CONVERTING VOLUMES ====================================================================
 
-vol.conversions <- numeric(0)
+vol.conversions <- c(1, 48, 16, 0.25, 8, 0.24, 240, 0.0625, 0.5, 768, 2880, 384)
+names(vol.conversions) <- volumes
+
+# Function that converts any volume to cups
+convert <- function(vol, unit) {
+  return(unname(vol/vol.conversions[unit]))
+}
+
+vol.amts <- amts[is.mostly.volumes]
+
+process.volumes <- function(ingredient.amts) {
+  is.volume <- grep(paste(volumes, collapse ="|"), ingredient.amts)
+  vols <- ingredient.amts[is.volume]
+  
+  # If volume is specified without brackets, convert straight to cups
+  no.brackets <- grepl(paste("^[0-9 /]+ (", paste(volumes, collapse = "|"),")[s]?$", sep = ""), vols)
+  numbers <- frac_to_float(sub(paste(" (", paste(volumes, collapse = "|"),")[s]?", sep = ""), "", vols[no.brackets]))
+  
+  volumes.tomatch <- c(volumes, "fluid", paste(volumes, "s", sep=""))
+  units <- rapply(strsplit(vols[no.brackets], " "), function(x) {x[x %in% volumes.tomatch]}, how="unlist")
+  units <- sub("s$", "", units)
+  units[units=="fluid"] <- "fluid ounce"
+
+  vols[no.brackets] <- mapply(convert, as.numeric(numbers), units)
+  
+  # Deal with volumes containing brackets (e.g. "1 (12 fluid ounce) can")
+  vols.to.convert <- vols[grepl("^[0-9/ ]+ \\([0-9/ .]+ ", vols)]
+  
+  multiply.vols <- function(vol) {
+    quantity <- as.numeric(frac_to_float(unlist(strsplit(vol, " \\("))[1]))
+    volume <- as.numeric(sub("[ )a-z]+", "", unlist(strsplit(vol, " \\("))[2]))
+    unit <- sub(volume, "", unlist(strsplit(vol, " \\("))[2])
+    unit <- trimws(sub("\\)[ a-z]+", "", unit))
+    
+    return(quantity * convert(volume, unit))
+  }
+  
+  vols[grepl("^[0-9/ ]+ \\([0-9/ .]+ ", vols)] <- sapply(vols.to.convert, multiply.vols, USE.NAMES = FALSE)
+  
+  # for any non-volumes, impute mean volume
+  ingredient.amts[-is.volume] <- mean(as.numeric(vols))
+  ingredient.amts[is.volume] <- vols
+  
+  return(as.numeric(ingredient.amts))
+}
+
+# Process all volumes
+vol.amts <- rapply(vol.amts, process.volumes, how="replace")
 
 ############################
 # something like this:
