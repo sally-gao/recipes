@@ -250,7 +250,7 @@ process.weights <- function(ingredient.amts) {
     return(as.numeric(weight[1]) * as.numeric(weight[2]))
   }
   
-  weights[grepl("^[0-9/ ]+ \\([0-9/ .]+ ounce\\)", weights)] <- multiply.ounces(oz.to.convert)
+  weights[grepl("^[0-9/ ]+ \\([0-9/ .]+ ounce\\)", weights)] <- sapply(oz.to.convert, multiply.ounces, USE.NAMES = FALSE)
   
   # same thing for pounds, except multiply by 16
   lb.to.convert <- weights[grepl("^[0-9/ ]+ \\([0-9/ .]+ pound\\)", weights)]
@@ -263,7 +263,7 @@ process.weights <- function(ingredient.amts) {
     return(as.numeric(weight[1]) * (as.numeric(weight[2])*16))
   }
   
-  weights[grepl("^[0-9/ ]+ \\([0-9/ .]+ pound\\)", weights)] <- multiply.pounds(lb.to.convert)
+  weights[grepl("^[0-9/ ]+ \\([0-9/ .]+ pound\\)", weights)] <- sapply(lb.to.convert, multiply.pounds, USE.NAMES = FALSE)
   
   # for any non-weights, impute mean weight
   ingredient.amts[-is.weight] <- mean(as.numeric(weights))
@@ -277,6 +277,7 @@ weights.amts <- rapply(weights.amts, process.weights, how="replace")
 
 ## CONVERTING VOLUMES ====================================================================
 
+vol.conversions <- numeric(0)
 
 ############################
 # something like this:
