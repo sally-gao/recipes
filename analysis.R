@@ -147,7 +147,7 @@ summary(standard.lm)
 standard.lm$residuals^2 %>% mean %>% sqrt
 # 0.4065078
 
-## TOPIC MODELING ================================================================
+## TOPIC MODELING: CREATE DOCUMENT-TERM MATRIX ================================================================
 
 # Create recipe "documents" based on ingredient weights
 norm.ingredients <- minmax.ingredients[6:428]
@@ -159,6 +159,157 @@ recipe.to.text <- function(recipe) {
 }
 
 docs <- apply(norm.ingredients, MARGIN=1, FUN=recipe.to.text)
+docs.df <- as.data.frame(docs)
 
+corpus <- VCorpus(DataframeSource(docs.df))
 
+# Document-term matrix with term frequency weighting
+recipes.dtm <- DocumentTermMatrix(corpus, control = list(weighting = weightTf))
 
+## TOPIC MODELING W/ LATENT DIRICHLET ALLOCATION ================================================================
+
+# Topic modeling, k = 10
+tm10 <- LDA(recipes.dtm, 10)
+terms(tm10, 10)
+
+# Topic modeling, k = 25
+tm25 <- LDA(recipes.dtm, 25)
+terms(tm25, 5)
+
+# k = 100
+tm100 <- LDA(recipes.dtm, 100)
+terms(tm100, 5)
+
+# k = 200
+tm200 <- LDA(recipes.dtm, 200)
+
+tm10.odds <- posterior(tm10, recipes.dtm)$topics %>% as.data.frame
+tm25.odds <- posterior(tm25, recipes.dtm)$topics %>% as.data.frame
+tm100.odds <- posterior(tm100, recipes.dtm)$topics %>% as.data.frame
+tm200.odds <- posterior(tm200, recipes.dtm)$topics %>% as.data.frame
+
+tm25.odds$Rating <- recipe.ingredients$Rating
+tm25.lm <- lm(Rating ~ ., data=tm25.odds)
+summary(tm25.lm)
+# Multiple R-squared:  0.01674,	Adjusted R-squared:  0.005901 
+
+# Training RMSE:
+tm25.lm$residuals^2 %>% mean %>% sqrt
+# 0.457222
+
+tm100.odds$Rating <- recipe.ingredients$Rating
+tm100.lm <- lm(Rating ~ ., data=tm100.odds)
+summary(tm100.lm)
+# Multiple R-squared:  0.07128,	Adjusted R-squared:  0.02754
+
+# Training RMSE:
+tm100.lm$residuals^2 %>% mean %>% sqrt
+# 0.4443612
+
+tm200.odds$Rating <- recipe.ingredients$Rating
+tm200.lm <- lm(Rating ~ ., data=tm200.odds)
+summary(tm200.lm)
+# Multiple R-squared:  0.1371,	Adjusted R-squared:  0.05128
+
+tm200.lm$residuals^2 %>% mean %>% sqrt
+# 0.4283356
+
+## USING "MOST LIKELY TOPIC" AS A PREDICTOR ================================================================
+
+topics.tm10 <- topics(tm10)
+topics.tm25 <- topics(tm25)
+
+minmax.tm10.lm <- lm(Rating ~ . -ID +as.factor(topics.tm10), data=minmax.ingredients)
+summary(minmax.tm10.lm)
+# Multiple R-squared:  0.4628,	Adjusted R-squared:  0.1202 
+
+minmax.tm10.lm$residuals^2 %>% mean %>% sqrt 
+# Training RMSE: 0.3379662
+
+minmax.tm25.lm <- lm(Rating ~ . -ID +as.factor(topics.tm25), data=minmax.ingredients)
+summary(minmax.tm25.lm)
+# Multiple R-squared:  0.4665,	Adjusted R-squared:  0.1164 
+
+minmax.tm25.lm$residuals^2 %>% mean %>% sqrt 
+# 0.3368027
+
+# How about 50 topics?
+tm50 <- LDA(recipes.dtm, 50)
+topics.tm50 <- topics(tm50)
+
+minmax.tm50.lm <- lm(Rating ~ . -ID +as.factor(topics.tm50), data=minmax.ingredients)
+summary(minmax.tm50.lm)
+# Multiple R-squared:  0.4745,	Adjusted R-squared:  0.1129 
+
+minmax.tm50.lm$residuals^2 %>% mean %>% sqrt 
+# 0.3342703
+
+# With 100 topics
+topics.tm100 <- topics(tm100)
+minmax.tm100.lm <- lm(Rating ~ . -ID +as.factor(topics.tm100), data=minmax.ingredients)
+summary(minmax.tm100.lm)
+# Multiple R-squared:  0.4879,	Adjusted R-squared:  0.1012
+
+minmax.tm100.lm$residuals^2 %>% mean %>% sqrt 
+# 0.3299677
+
+# With 200 topics
+topics.tm200 <- topics(tm200)
+minmax.tm200.lm <- lm(Rating ~ . -ID +as.factor(topics.tm200), data=minmax.ingredients)
+summary(minmax.tm200.lm)
+# Multiple R-squared:  0.5202,	Adjusted R-squared:  0.08655
+
+minmax.tm200.lm$residuals^2 %>% mean %>% sqrt 
+# 0.3193766
+
+## CROSS-VALIDATION ================================================================
+
+test.ids <- sample(c(1:nrow(minmax.ingredients)), 200)
+
+minmax.train <- minmax.ingredients[-test.ids,]
+minmax.test <- minmax.ingredients[test.ids,]
+
+# Linear regression using only ReviewCount
+reviewcount.cv <- lm(Rating ~ ReviewCount, data=minmax.train)
+(minmax.test$Rating-predict(reviewcount.cv, minmax.test))^2 %>% mean %>% sqrt
+# Test MSE: 0.4732248
+
+# Linear regression using indicator variables and min-max normalized ingredient variab les
+minmax.cv <- lm(Rating ~ . -ID, data=minmax.train)
+(minmax.test$Rating-predict(minmax.cv, minmax.test))^2 %>% mean %>% sqrt
+# [1] 0.6361273
+# Warning message:
+#   In predict.lm(minmax.cv, minmax.test) :
+#   prediction from a rank-deficient fit may be misleading
+
+norm.cv <- minmax.train[6:428]
+
+# Topic modeling
+docs.cv <- apply(norm.cv, MARGIN=1, FUN=recipe.to.text) %>% as.data.frame()
+corpus <- VCorpus(DataframeSource(docs.cv))
+
+# Document-term matrix with term frequency weighting
+recipes.cv <- DocumentTermMatrix(corpus, control = list(weighting = weightTf))
+
+# Test DTM:
+
+test.cv <- minmax.test[6:428]
+# Topic modeling
+testdocs.cv <- apply(test.cv, MARGIN=1, FUN=recipe.to.text) %>% as.data.frame()
+testcorpus <- VCorpus(DataframeSource(testdocs.cv))
+# Document-term matrix with term frequency weighting
+test.dtm <- DocumentTermMatrix(testcorpus, control = list(weighting = weightTf))
+
+# k = 10
+tm10.cv <- LDA(recipes.cv, 10)
+minmax.tm10.cv <- lm(Rating ~ . -ID +as.factor(topics(tm10.cv)), data=minmax.train)
+
+tm10.cv.odds <- posterior(tm10.cv, test.dtm)$topics %>% as.data.frame
+
+extract.topic <- function(row) {
+  return(which(row==max(row)))
+}
+
+tm10.topics <- apply(tm10.cv.odds, MARGIN=1, extract.topic)
+
+(minmax.test$Rating-predict(minmax.tm10.cv, cbind(minmax.test, tm10.topics)))^2 %>% mean %>% sqrt
