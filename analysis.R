@@ -274,7 +274,7 @@ reviewcount.cv <- lm(Rating ~ ReviewCount, data=minmax.train)
 (minmax.test$Rating-predict(reviewcount.cv, minmax.test))^2 %>% mean %>% sqrt
 # Test MSE: 0.4732248
 
-# Linear regression using indicator variables and min-max normalized ingredient variab les
+# Linear regression using indicator variables and min-max normalized ingredient variables
 minmax.cv <- lm(Rating ~ . -ID, data=minmax.train)
 (minmax.test$Rating-predict(minmax.cv, minmax.test))^2 %>% mean %>% sqrt
 # [1] 0.6361273
@@ -302,7 +302,8 @@ test.dtm <- DocumentTermMatrix(testcorpus, control = list(weighting = weightTf))
 
 # k = 10
 tm10.cv <- LDA(recipes.cv, 10)
-minmax.tm10.cv <- lm(Rating ~ . -ID +as.factor(topics(tm10.cv)), data=minmax.train)
+tm10.traindata <- data.frame(minmax.train, topics=as.factor(topics(tm10.cv)))
+minmax.tm10.cv <- lm(Rating ~ . -ID, data=minmax.train)
 
 tm10.cv.odds <- posterior(tm10.cv, test.dtm)$topics %>% as.data.frame
 
@@ -312,4 +313,9 @@ extract.topic <- function(row) {
 
 tm10.topics <- apply(tm10.cv.odds, MARGIN=1, extract.topic)
 
-(minmax.test$Rating-predict(minmax.tm10.cv, cbind(minmax.test, tm10.topics)))^2 %>% mean %>% sqrt
+tm10.testdata <- data.frame(minmax.test, topics=tm10.topics)
+(minmax.test$Rating-predict(minmax.tm10.cv, tm10.testdata))^2 %>% mean %>% sqrt
+# [1] 0.6361273
+# Warning message:
+#   In predict.lm(minmax.tm10.cv, tm10.testdata) :
+#   prediction from a rank-deficient fit may be misleading

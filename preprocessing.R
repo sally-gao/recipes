@@ -447,7 +447,7 @@ amts[is.mostly.volumes] <- vol.amts
 amts[is.mostly.raw] <- raw.amts
 amts[is.mixed] <- mixed.amts
 
-## CREATE UNNORMALIZED DOCUMENT-TERM MATRIX ====================================================================
+## CREATE UNNORMALIZED MATRIX OF INGREDIENT WEIGHTS ====================================================================
 
 dtm <- recipes_filtered %>% 
   select(ID, Rating, ReviewCount, MadeIt, Calories)
