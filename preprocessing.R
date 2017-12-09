@@ -486,16 +486,4 @@ at.least.three.ingredients <- apply(dtm, MARGIN=1, FUN=function(row) {sum(is.na(
 
 dtm <- dtm %>% filter(at.least.three.ingredients)
 
-write_csv(dtm, "dtm.csv", col_names=TRUE)
-
-## MIN-MAX NORMALIZATION WITH INDICATOR VARIABLES ====================================================================
-
-# something like this:
-normalized.amts <- mapply(amts, normalize.ingredient, names(amts))
-
-norm_rawquantity <- function(ingredient.amts, ingredient.name) {
-  servings <- all_ingredients$Servings[all_ingredients$ingredient==ingredient.name]
-  a <- as.numeric(ingredient.amts)/servings # get amounts per serving
-  norm <- (a - min(a))/(max(a) - min(a))
-  return(norm+1)
-}
+# write_csv(dtm, "dtm.csv", col_names=TRUE)
