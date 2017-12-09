@@ -1,6 +1,7 @@
 library(tidyverse)
+library(tm)
 
-recipe.ingredients <- read_csv("dtm.csv")
+recipe.ingredients <- read.csv("dtm.csv")
 
 ## LINEAR MODEL WITH NON-INGREDIENT VARIABLES ================================================================
 
@@ -53,22 +54,22 @@ indicator.ingredients[,6:428][indicator.ingredients[,6:428]!=0] <- 1
 
 indicator.lm <- lm(Rating ~ . -ID, data=indicator.ingredients)
 summary(indicator.lm)
-# Multiple R-squared:  0.2619,	Adjusted R-squared:  0.08477
+# Multiple R-squared:  0.2621,	Adjusted R-squared:  0.08503 
 
 # Training RMSE:
 indicator.lm$residuals^2 %>% mean %>% sqrt
-# 0.3961381
+# 0.3960819
 # Similar to the model with ingredient weightings.
 
 ## LINEAR MODEL WITH MIN-MAX NORMALIZED INGREDIENT VARIABLES ================================================================
 
-minmax.ingredients <- read_csv("dtm.csv")
+minmax.ingredients <- read.csv("dtm.csv")
 
 minmax.ingredients <- minmax.ingredients %>% 
   filter(Rating!=0)
 
 # Impute mean for missing Calories
-recipe.ingredients$Calories[is.na(recipe.ingredients$Calories)] <- mean(recipe.ingredients$Calories, na.rm=TRUE)
+minmax.ingredients$Calories[is.na(minmax.ingredients$Calories)] <- mean(minmax.ingredients$Calories, na.rm=TRUE)
 
 # Convert all ingredients to numeric
 minmax.ingredients[] <- lapply(minmax.ingredients, function(x) as.numeric(x))
@@ -97,5 +98,67 @@ summary(minmax.lm)
 
 # Training RMSE:
 minmax.lm$residuals^2 %>% mean %>% sqrt
-# 0.3402445 - lowest RMSE so far
+# 0.33948 - lowest RMSE so far
+
+# How about without the indicator variables?
+minmax.lm2 <- lm(Rating ~ . -ID, data=minmax.ingredients[1:428])
+summary(minmax.lm2)
+# Multiple R-squared:  0.2626,	Adjusted R-squared:  0.0862
+
+# Training RMSE:
+minmax.lm2$residuals^2 %>% mean %>% sqrt
+# 0.3959411
+
+## LINEAR MODEL W/ INGREDIENTS STANDARDIZED BY MEAN ABSOLUTE DEVIATION ================================================================
+
+standard.ingredients <- read.csv("dtm.csv")
+
+standard.ingredients <- standard.ingredients %>% 
+  filter(Rating!=0)
+
+# Impute mean for missing Calories
+standard.ingredients$Calories[is.na(standard.ingredients$Calories)] <- mean(standard.ingredients$Calories, na.rm=TRUE)
+
+# Convert all ingredients to numeric
+standard.ingredients[] <- lapply(standard.ingredients, function(x) as.numeric(x))
+
+# Standardize ingredients by mean absolute deviation
+standardize <- function(ingredient.amts) {
+  deviation <- mean(abs(ingredient.amts-mean(ingredient.amts, na.rm = TRUE)), na.rm = TRUE)
+  
+  if(deviation!=0) {
+    standardized <- ingredient.amts/deviation
+    return(standardized) 
+  }
+  
+  else{return(ingredient.amts)}
+}
+
+standard.ingredients[,6:428] <- apply(standard.ingredients[,6:428], MARGIN=2, FUN=standardize)
+
+# Impute all missing values as 0
+standard.ingredients[is.na(standard.ingredients)] <- 0
+
+standard.lm <- lm(Rating ~ . -ID, data=standard.ingredients[,1:290])
+summary(standard.lm)
+# Multiple R-squared:  0.2228,	Adjusted R-squared:  0.1058
+
+# Training RMSE:
+standard.lm$residuals^2 %>% mean %>% sqrt
+# 0.4065078
+
+## TOPIC MODELING ================================================================
+
+# Create recipe "documents" based on ingredient weights
+norm.ingredients <- minmax.ingredients[6:428]
+
+recipe.to.text <- function(recipe) {
+  frequency <- ceiling((recipe/sum(recipe))*100)
+  doc <- paste(rep(names(frequency), frequency), collapse=" ")
+  return(doc)
+}
+
+docs <- apply(norm.ingredients, MARGIN=1, FUN=recipe.to.text)
+
+
 
