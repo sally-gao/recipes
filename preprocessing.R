@@ -166,7 +166,7 @@ selected_ingredients <- grouped_ingredients %>%
 amts <- sapply(selected_ingredients$ingredient, function(ingredient)
   {all_ingredients$amt[all_ingredients$ingredient==ingredient]}, USE.NAMES = TRUE)
 
-# No amounts specified for one ingredient: cooking spray. This is probably not an important ingredient anyway,
+# No amounts specified for one ingredient: cooking spray. This is not an important ingredient anyway,
 # so just delete it.
 amts$`cooking spray`
 # [1] "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" ""
@@ -435,12 +435,58 @@ process.mixed <- function(ingredient.amts, ingredient.name) {
   return(converted.amts)
 }
 
-mixed.amts[!is.mostly.special] <- mapply(process.mixed, ingredient.name = mixed.names, ingredient.amt = rapply(mixed.amts[!is.mostly.special],
-                                                                                     function(x) {return(x)}, how="replace"))
+mixed.amts[!is.mostly.special] <- mapply(process.mixed,
+                                         ingredient.name = mixed.names,
+                                         ingredient.amt = rapply(mixed.amts[!is.mostly.special],
+                                                                 function(x) {return(x)}, how="replace"))
 
+## UPDATE AMTS ====================================================================
 
+amts[is.mostly.weights] <- weights.amts
+amts[is.mostly.volumes] <- vol.amts
+amts[is.mostly.raw] <- raw.amts
+amts[is.mixed] <- mixed.amts
 
-############################
+## CREATE UNNORMALIZED DOCUMENT-TERM MATRIX ====================================================================
+
+dtm <- recipes_filtered %>% 
+  select(ID, Rating, ReviewCount, MadeIt, Calories)
+
+dtm[names(amts)] <- NA
+
+for (name in names(amts)) {
+  
+  ingredient.amts <- amts[[name]]
+  
+  amts.ids <- all_ingredients$recipe_id[all_ingredients$ingredient==name]
+  
+  # Deal with duplicated recipe ids for recipes where ingredient appears more than once
+  if (length(amts.ids[duplicated(amts.ids)])!=0) {
+    for (id in amts.ids[duplicated(amts.ids)]) {
+      ingredient.amts[which(amts.ids==id)[1]] <- sum(ingredient.amts[amts.ids==id])
+    }
+    
+    to.remove <- numeric(0)
+    
+    for (id in amts.ids[duplicated(amts.ids)]) {
+      to.remove <- c(to.remove, which(amts.ids==id)[-1])
+    }
+    
+    ingredient.amts <- ingredient.amts[-to.remove]
+  }
+  
+  dtm[dtm$ID %in% all_ingredients$recipe_id[all_ingredients$ingredient==name],name] <- ingredient.amts
+}
+
+# Filter out recipes that don't have at least 3 ingredients
+at.least.three.ingredients <- apply(dtm, MARGIN=1, FUN=function(row) {sum(is.na(row[6:428])) < 421})
+
+dtm <- dtm %>% filter(at.least.three.ingredients)
+
+# write_csv(dtm, "dtm.csv", col_names=TRUE)
+
+## MIN-MAX NORMALIZATION WITH INDICATOR VARIABLES ====================================================================
+
 # something like this:
 normalized.amts <- mapply(amts, normalize.ingredient, names(amts))
 
