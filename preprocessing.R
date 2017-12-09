@@ -24,7 +24,7 @@ recipes_filtered <- recipes_filtered %>%
 
 ## EXTRACT INGREDIENTS AND CORRESPONDING AMOUNTS ====================================================================
 
-measures <- "(cup|teaspoon|tablespoon| can|pound|package|clove|dash|sprig|pinch|slice|quart|drop|stalk|liter|milliliter|gallon|pint|bottle)"
+measures <- "(cup|teaspoon|tablespoon| can|pound|package|clove|dash|sprig|pinch|slice|quart|drop|stalk|liter|milliliter|gallon|pint|bottle|bag|carton|container)"
 tomatch <- paste("([[:digit:][:space:]a-z/().]+", measures, "s?[)]? )|([0-9]+[[:space:][:digit:]/]+ )|([0-9]+ )", sep="")
 
 split_amt <- function(strlist) {
@@ -88,10 +88,17 @@ wordsToRemove <- c("ground", "grated", "all-purpose", "melted", "minced", "softe
                    "heated", "cored", "powdered", "raw", "thickly", "very", "reduced-fat", "ripe", "roasted", "halved",
                    "shelled", "smoked", "square", "squares", "squeezed", "toasted", "deveined", "thick", "-", "or",
                    "more", "semisweet", "meat", "stewed", "thin", "cut", "thick-cut", "chops", "spareribs", "tenderloin",
-                   "loin", "ribs", "roast", "sirloin", "shoulder", "mild", "smashed", "roughly", "pressed", "chilled")
+                   "loin", "ribs", "roast", "sirloin", "shoulder", "mild", "smashed", "roughly", "pressed", "chilled",
+                   "legs", "leg", "coarse", "kosher", "for", "garnish", "decoration", "dusting", "frying", "coating", "at",
+                   "wings", "instant", "nonfat", "non-fat", "sharp", "pure", "seedless", "chunks", "bone-in", "creamy",
+                   "crunchy", "hard-boiled", "loaf", "loaves", "lowfat", "miniature", "soft", "blanched", "slivered",
+                   "firm", "extra-firm", "silken", "semi-sweet", "mini", "hulled", "granules", "strong", "brewed", "bunch",
+                   "stemmed", "drumsticks", "drumettes", "pounded", "tenders", "cube", "cubes", "fine", "grilled", "head",
+                   "heads", "florets", "leaf", "leaves", "long", "grain", "long-grain", "lukewarm", "pods", "husked",
+                   "tenderloins", "washed", "bulb", "bulbs", "cooled", "strips", "deli", "into")
 
 # pattern to match common phrases and anything in parentheses
-pattern <- "( to taste| as needed| cut into| for decoration| for dusting)|(\\(.*\\) ?)|( cut.*(strips|pieces|wedges|chunks|cubes|slices))"
+pattern <- "( to taste| as needed| cut into| room temperature| broken into)|(\\(.*\\) ?)|( cut.*(strips|pieces|wedges|chunks|cubes|slices))"
 
 process_ingredients <- function(ingredient_str) {
   ingredient_str <- tolower(gsub(",", "", ingredient_str)) # remove commas and convert to lowercase
@@ -159,6 +166,13 @@ selected_ingredients <- grouped_ingredients %>%
 amts <- sapply(selected_ingredients$ingredient, function(ingredient)
   {all_ingredients$amt[all_ingredients$ingredient==ingredient]}, USE.NAMES = TRUE)
 
+# No amounts specified for one ingredient: cooking spray. This is probably not an important ingredient anyway,
+# so just delete it.
+amts$`cooking spray`
+# [1] "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" ""
+amts <- amts[-which(names(amts)=="cooking spray")]
+selected_ingredients <- selected_ingredients %>% filter(!ingredient=="cooking spray")
+
 # Define volume and weight measurements
 volumes <- c("cup", "teaspoon", "tablespoon", "quart", "fluid ounce", "liter", "milliliter",
              "gallon", "pint", "pinch", "drop", "dash")
@@ -171,7 +185,7 @@ mostly.volumes <- function(ingredient.amts) {
 }
 
 is.mostly.volumes <- rapply(amts, mostly.volumes, how="unlist")
-sum(is.mostly.volumes) # 237
+sum(is.mostly.volumes) # 226
 
 # Find all ingredients for which over 70% of amounts (not including "") are specified in weight
 mostly.weights <- function(ingredient.amts) {
@@ -181,7 +195,7 @@ mostly.weights <- function(ingredient.amts) {
 }
 
 is.mostly.weights <- rapply(amts, mostly.weights, how="unlist")
-sum(is.mostly.weights) # 69
+sum(is.mostly.weights) # 68
 
 # Find all ingredients for which over 70% of amounts (not including "") use the ingredient itself as the unit
 
@@ -205,12 +219,12 @@ mostly.raw <- function(ingredient.amts) {
 }
 
 is.mostly.raw <- rapply(amts, mostly.raw, how="unlist")
-sum(is.mostly.raw) # 40
+sum(is.mostly.raw) # 35
 
 # Find all ingredients for which amounts are specified in a mix of volumes, weights, or others
 mixed <- is.mostly.volumes+is.mostly.weights+is.mostly.raw
 mixed <- mixed[mixed==0]
-length(mixed) # 86 such ingredients to deal with
+length(mixed) # 94 such ingredients to deal with
 
 ## CONVERTING WEIGHTS ====================================================================
 
@@ -226,11 +240,7 @@ frac_to_float <- function(vec) {
 
 weights.amts <- amts[is.mostly.weights]
 
-process.weights <- function(ingredient.amts) {
-  is.weight <- c(grep("ounce", ingredient.amts), grep("pound", ingredient.amts))
-  is.weight <- is.weight[!is.weight %in% grep("fluid", ingredient.amts)]
-  weights <- ingredient.amts[is.weight]
-  
+get.weights <- function(weights) {
   # if weight is just specified in ounces, remove the word "ounce" or "ounces"
   in.ounces <- grepl("^[0-9 /]+ ounce[s]?$", weights)
   weights[in.ounces] <- frac_to_float(sub(" ounce[s]?", "", weights[in.ounces]))
@@ -265,6 +275,16 @@ process.weights <- function(ingredient.amts) {
   
   weights[grepl("^[0-9/ ]+ \\([0-9/ .]+ pound\\)", weights)] <- sapply(lb.to.convert, multiply.pounds, USE.NAMES = FALSE)
   
+  return(weights)
+}
+
+process.weights <- function(ingredient.amts) {
+  is.weight <- c(grep("ounce", ingredient.amts), grep("pound", ingredient.amts))
+  is.weight <- is.weight[!is.weight %in% grep("fluid", ingredient.amts)]
+  weights <- ingredient.amts[is.weight]
+  
+  weights <- get.weights(weights)
+  
   # for any non-weights, impute mean weight
   ingredient.amts[-is.weight] <- mean(as.numeric(weights))
   ingredient.amts[is.weight] <- weights
@@ -287,10 +307,7 @@ convert <- function(vol, unit) {
 
 vol.amts <- amts[is.mostly.volumes]
 
-process.volumes <- function(ingredient.amts) {
-  is.volume <- grep(paste(volumes, collapse ="|"), ingredient.amts)
-  vols <- ingredient.amts[is.volume]
-  
+get.volumes <- function(vols) {
   # If volume is specified without brackets, convert straight to cups
   no.brackets <- grepl(paste("^[0-9 /]+ (", paste(volumes, collapse = "|"),")[s]?$", sep = ""), vols)
   numbers <- frac_to_float(sub(paste(" (", paste(volumes, collapse = "|"),")[s]?", sep = ""), "", vols[no.brackets]))
@@ -299,7 +316,7 @@ process.volumes <- function(ingredient.amts) {
   units <- rapply(strsplit(vols[no.brackets], " "), function(x) {x[x %in% volumes.tomatch]}, how="unlist")
   units <- sub("s$", "", units)
   units[units=="fluid"] <- "fluid ounce"
-
+  
   vols[no.brackets] <- mapply(convert, as.numeric(numbers), units)
   
   # Deal with volumes containing brackets (e.g. "1 (12 fluid ounce) can")
@@ -316,6 +333,15 @@ process.volumes <- function(ingredient.amts) {
   
   vols[grepl("^[0-9/ ]+ \\([0-9/ .]+ ", vols)] <- sapply(vols.to.convert, multiply.vols, USE.NAMES = FALSE)
   
+  return(vols)
+}
+
+process.volumes <- function(ingredient.amts) {
+  is.volume <- grep(paste(volumes, collapse ="|"), ingredient.amts)
+  vols <- ingredient.amts[is.volume]
+  
+  vols <- get.volumes(vols)
+  
   # for any non-volumes, impute mean volume
   ingredient.amts[-is.volume] <- mean(as.numeric(vols))
   ingredient.amts[is.volume] <- vols
@@ -325,6 +351,94 @@ process.volumes <- function(ingredient.amts) {
 
 # Process all volumes
 vol.amts <- rapply(vol.amts, process.volumes, how="replace")
+
+## CONVERTING RAW QUANTITIES ====================================================================
+
+raw.amts <- amts[is.mostly.raw]
+
+process.raw <- function(ingredient.amt) {
+  raw <- ingredient.amt[!grepl("[a-z]+", ingredient.amt)]
+  quantities <- convert_frac(raw)
+  ingredient.amt[!grepl("[a-z]+", ingredient.amt)] <- quantities
+  
+  # Impute mean for non-raw quantities
+  ingredient.amt[grepl("[a-z]+", ingredient.amt)] <- mean(as.numeric(quantities))
+  
+  return(as.numeric(ingredient.amt))
+}
+
+# Process all raw quantities
+raw.amts <- rapply(raw.amts, process.raw, how="replace")
+
+## CONVERTING MIXED AMTS & SPECIAL UNITS ====================================================================
+
+is.mixed <- !(is.mostly.volumes+is.mostly.weights+is.mostly.raw)
+mixed.amts <- amts[is.mixed]
+
+special.units <- c("clove", "sprig", "slice", "stalk")
+
+# Find all ingredients for which over 70% of amounts (not including "") are specified in one of the 4 special units
+mostly.special <- function(ingredient.amts) {
+  total.matches <- sapply(special.units, function(x) sum(grepl(x, ingredient.amts)))
+  return(sum(total.matches) > (length(ingredient.amts[ingredient.amts!=""]))*0.7)
+}
+
+is.mostly.special <- rapply(mixed.amts, mostly.special, how="unlist")
+names(is.mostly.special[is.mostly.special==TRUE]) # [1] "garlic"      "bread"       "white bread"
+
+# Deal with special units
+process.special <- function(ingredient.amts, unit) {
+  in.special <- grepl(unit, ingredient.amts)
+  special <- frac_to_float(sub(" .+$", "", ingredient.amts[in.special]))
+  ingredient.amts[!in.special] <- mean(as.numeric(special))
+  ingredient.amts[in.special] <- special
+  return(as.numeric(ingredient.amts))
+}
+
+mixed.amts$garlic <- process.special(amts$garlic, "clove")
+mixed.amts$bread <- process.special(mixed.amts$bread, "slice")
+mixed.amts$`white bread` <- process.special(mixed.amts$`white bread`, "slice")
+
+# Dealing with mixed amounts
+mixed.names <- names(mixed.amts[!is.mostly.special])
+
+# mixed.chart <- tibble(ingredient = mixed.names)
+# write_csv(mixed.chart, "mixed_chart.csv", col_names = TRUE)
+
+# Import manually researched conversion chart
+mixed.chart <- read_csv("mixed_chart.csv")
+mixed.chart$oz <- mixed.chart$grams*0.035274
+
+process.mixed <- function(ingredient.amts, ingredient.name) {
+  is.raw <- !grepl("[a-z]+", ingredient.amts)
+  raw <- as.numeric(frac_to_float(ingredient.amts[is.raw]))
+  
+  is.weight <- c(grep("ounce", ingredient.amts), grep("pound", ingredient.amts))
+  is.weight <- is.weight[!is.weight %in% grep("fluid", ingredient.amts)]
+  weights <- as.numeric(unlist(get.weights(ingredient.amts[is.weight]))) # all weights in ounces
+  
+  is.volume <- grep(paste(volumes, collapse ="|"), ingredient.amts)
+  vols <- as.numeric(unlist(get.volumes(ingredient.amts[is.volume]))) # all volumes in cups
+  
+  is.slice <- grepl("slice", ingredient.amts)
+  slice <- as.numeric(frac_to_float(sub(" .+$", "", ingredient.amts[is.slice])))
+  
+  converted.amts <- numeric(length(ingredient.amts))
+  converted.amts[is.raw] <- raw/mixed.chart$quantity[mixed.chart$ingredient==ingredient.name]
+  converted.amts[is.weight] <- weights/mixed.chart$oz[mixed.chart$ingredient==ingredient.name]
+  converted.amts[is.volume] <- vols/mixed.chart$cup[mixed.chart$ingredient==ingredient.name]
+  converted.amts[is.slice] <- slice/mixed.chart$slice[mixed.chart$ingredient==ingredient.name]
+  
+  # For NA or "", impute mean
+  converted.amts[is.na(converted.amts)|ingredient.amts==""] <- mean(converted.amts, na.rm=TRUE)
+  
+  return(converted.amts)
+}
+
+mixed.amts[!is.mostly.special] <- mapply(process.mixed, ingredient.name = mixed.names, ingredient.amt = rapply(mixed.amts[!is.mostly.special],
+                                                                                     function(x) {return(x)}, how="replace"))
+
+
 
 ############################
 # something like this:
