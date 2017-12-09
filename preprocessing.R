@@ -457,6 +457,9 @@ dtm[names(amts)] <- NA
 for (name in names(amts)) {
   
   ingredient.amts <- amts[[name]]
+  servings <- all_ingredients$Servings[all_ingredients$ingredient==name]
+  
+  ingredient.amts <- ingredient.amts/servings
   
   amts.ids <- all_ingredients$recipe_id[all_ingredients$ingredient==name]
   
@@ -483,7 +486,7 @@ at.least.three.ingredients <- apply(dtm, MARGIN=1, FUN=function(row) {sum(is.na(
 
 dtm <- dtm %>% filter(at.least.three.ingredients)
 
-# write_csv(dtm, "dtm.csv", col_names=TRUE)
+write_csv(dtm, "dtm.csv", col_names=TRUE)
 
 ## MIN-MAX NORMALIZATION WITH INDICATOR VARIABLES ====================================================================
 
