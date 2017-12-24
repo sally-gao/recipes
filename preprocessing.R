@@ -1,20 +1,21 @@
 library(tidyverse)
 
 recipes <- read_csv("recipes_ascii.csv")
+recipes2 <- read_csv("recipes2_ascii.csv")
 
 # Get rid of weird extra columns
 recipes <- recipes[,names(recipes)[1:12]]
 
-recipes %>% 
-  sapply(function(x) sum(x==0))
-
-summary(recipes)
+recipes <- rbind(recipes, recipes2)
 
 # We don't know how many users rated each recipe. However, we know how many people claimed to
 # have the recipe and how many written reviews it has. We'll drop all recipes that either
 # have been "made" less than 5 times or reviewed less than 5 times.
-recipes_filtered <- recipes %>% 
-  filter(MadeIt >= 5 | ReviewCount >= 5)
+# recipes_filtered <- recipes %>% 
+#   filter(MadeIt >= 5 | ReviewCount >= 5)
+
+# Without filtering recipes
+recipes_filtered <- recipes
 
 summary(recipes_filtered)
 
@@ -95,17 +96,34 @@ wordsToRemove <- c("ground", "grated", "all-purpose", "melted", "minced", "softe
                    "firm", "extra-firm", "silken", "semi-sweet", "mini", "hulled", "granules", "strong", "brewed", "bunch",
                    "stemmed", "drumsticks", "drumettes", "pounded", "tenders", "cube", "cubes", "fine", "grilled", "head",
                    "heads", "florets", "leaf", "leaves", "long", "grain", "long-grain", "lukewarm", "pods", "husked",
-                   "tenderloins", "washed", "bulb", "bulbs", "cooled", "strips", "deli", "into")
+                   "tenderloins", "washed", "bulb", "bulbs", "cooled", "strips", "deli", "into", "torn", "bite-size",
+                   "bite-sized", "pieces", "piece", "pinch", "pinches", "cracked", "quick-cooking", "quick", "serving",
+                   "old-fashioned", "liquid", "processed", "unbleached", "unwrapped", "100%", "lactose-free", "all",
+                   "purpose", "bunches", "wedges", "dashes", "envelope", "envelopes", "original", "premium", "regular",
+                   "reserved", "hard-cooked", "unpeeled", "whisked", "well", "2%", "low-sodium", "reduced-sodium",
+                   "bulk", "links", "no-stick", "nonstick", "fire-roasted", "gluten-free", "no-salt-added", "real",
+                   "threads", "wheel", "center-cut", "dry-roasted", "fillets", "plus", "fully", "natural", "cleaned",
+                   "new", "non-stick", "stick", "sticks", "aged", "box", "jigger", "jiggers", "packet", "part-skim",
+                   "scrubbed", "skin-on", "stripped", "lengthwise")
 
 # pattern to match common phrases and anything in parentheses
-pattern <- "( to taste| as needed| cut into| room temperature| broken into)|(\\(.*\\) ?)|( cut.*(strips|pieces|wedges|chunks|cubes|slices))"
+pattern <- "( to taste| as needed| cut into| room temperature| broken into| to cover| with juice| liquid reserved| juice reserved| with skin|individually wrapped| if needed| in juice | with peel | as desired | casings removed)|(\\(.*\\) ?)|( cut.*(strips|pieces|wedges|chunks|cubes|slices))"
+brands <- c("kraft", "criscoapillsbury besta", "pillsbury best", "pillsburya", "pillsbury", "werthers original", "goldhen",
+            "huntsa", "land o lakes", "stonemill essentials", "bakers corner", "hersheyas", "hershey", "mccormicka",
+            "mccormick", "delallo", "happy farms", "maillea", "maille", "tabascobrand", "lucky leaf", "ortegaa",
+            "bob evansa", "bob evans", "reddi-wiporigina", "countryside creamery", "panko", "carlini", "dannon oikosa",
+            "dannon oikos", "egglands best", "philadelphia brick", "dijon originale", "pamaoriginal", "athenos traditional",
+            "jifa", "red delicious", "spice islands", "college inna", "contadina", "goya", "johnsonvillea", "johnsonville",
+            "nestlea toll housea", "nestlea carnationa", "nestle", "planters", "friendly farms", "ghirardelli",
+            "hatfieldrecipe essentials", "hass", "musselmansa", "southern grove", "appleton farms", "bosc")
 
 process_ingredients <- function(ingredient_str) {
-  ingredient_str <- tolower(gsub(",", "", ingredient_str)) # remove commas and convert to lowercase
+  ingredient_str <- tolower(gsub(",|[*]", "", ingredient_str)) # remove commas and convert to lowercase
+  ingredient_str <- gsub(paste(brands, collapse="|"), "", ingredient_str) # remove matches to brand names
   ingredient_str <- gsub(pattern, "", ingredient_str) # remove matches to pattern
   splitstr <- unlist(strsplit(ingredient_str, " ")) # split on spaces
   splitstr <- splitstr[(splitstr %in% wordsToRemove==FALSE)] # remove words named above
-  return(paste(splitstr, collapse=" "))
+  return(trimws(paste(splitstr, collapse=" ")))
 }
 
 all_ingredients$ingredient <- sapply(all_ingredients$ingredient, process_ingredients, USE.NAMES = FALSE)
@@ -160,18 +178,21 @@ all_ingredients <- all_ingredients %>%
 
 # Select unique ingredients for which count > 4
 selected_ingredients <- grouped_ingredients %>% 
-  filter(count > 4)
+  filter(count > 7)
 
-# For every unique ingredient for which count > 4, get a list of all the amount descriptors associated with it
+# For every unique ingredient for which count > 7, get a list of all the amount descriptors associated with it
 amts <- sapply(selected_ingredients$ingredient, function(ingredient)
   {all_ingredients$amt[all_ingredients$ingredient==ingredient]}, USE.NAMES = TRUE)
 
-# No amounts specified for one ingredient: cooking spray. This is not an important ingredient anyway,
-# so just delete it.
-amts$`cooking spray`
-# [1] "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" ""
-amts <- amts[-which(names(amts)=="cooking spray")]
-selected_ingredients <- selected_ingredients %>% filter(!ingredient=="cooking spray")
+# Which amts are mostly empty strings?
+percent.empty <- sapply(amts, function(x) {sum(x=="")/length(x)})
+which(percent.empty > .8)
+# cooking spray       filling 
+# 53           383
+
+# Remove cooking spray, filling
+amts <- amts[-empties]
+selected_ingredients <- selected_ingredients %>% filter(!(ingredient=="cooking spray"|ingredient=="filling"))
 
 # Define volume and weight measurements
 volumes <- c("cup", "teaspoon", "tablespoon", "quart", "fluid ounce", "liter", "milliliter",
@@ -185,7 +206,7 @@ mostly.volumes <- function(ingredient.amts) {
 }
 
 is.mostly.volumes <- rapply(amts, mostly.volumes, how="unlist")
-sum(is.mostly.volumes) # 226
+sum(is.mostly.volumes) # 390
 
 # Find all ingredients for which over 70% of amounts (not including "") are specified in weight
 mostly.weights <- function(ingredient.amts) {
@@ -195,7 +216,7 @@ mostly.weights <- function(ingredient.amts) {
 }
 
 is.mostly.weights <- rapply(amts, mostly.weights, how="unlist")
-sum(is.mostly.weights) # 68
+sum(is.mostly.weights) # 137
 
 # Find all ingredients for which over 70% of amounts (not including "") use the ingredient itself as the unit
 
@@ -219,12 +240,12 @@ mostly.raw <- function(ingredient.amts) {
 }
 
 is.mostly.raw <- rapply(amts, mostly.raw, how="unlist")
-sum(is.mostly.raw) # 35
+sum(is.mostly.raw) # 74
 
 # Find all ingredients for which amounts are specified in a mix of volumes, weights, or others
 mixed <- is.mostly.volumes+is.mostly.weights+is.mostly.raw
 mixed <- mixed[mixed==0]
-length(mixed) # 94 such ingredients to deal with
+length(mixed) # 176 such ingredients to deal with
 
 ## CONVERTING WEIGHTS ====================================================================
 
@@ -286,14 +307,26 @@ process.weights <- function(ingredient.amts) {
   weights <- get.weights(weights)
   
   # for any non-weights, impute mean weight
-  ingredient.amts[-is.weight] <- mean(as.numeric(weights))
+  ingredient.amts[-is.weight] <- mean(as.numeric(weights), na.rm = TRUE)
   ingredient.amts[is.weight] <- weights
+  
+  # If there are any NAs, impute mean
+  # ingredient.amts[is.na(as.numeric(ingredient.amts))] <- mean(as.numeric(weights), na.rm = TRUE)
   
   return(as.numeric(ingredient.amts))
 }
 
 # Process all weights
 weights.amts <- rapply(weights.amts, process.weights, how="replace")
+
+weights.NAs <- rapply(weights.amts, is.na, how="replace")
+sum.NAs <- rapply(weights.NAs, sum, how="unlist")
+which(sum.NAs!=0)
+# beef chuck     salmon 
+# 32         73 
+
+weights.amts$`beef chuck` # "1 (3 1/2) pound"
+weights.amts$salmon # "1 whole (5 pound)"
 
 ## CONVERTING VOLUMES ====================================================================
 
@@ -346,11 +379,25 @@ process.volumes <- function(ingredient.amts) {
   ingredient.amts[-is.volume] <- mean(as.numeric(vols))
   ingredient.amts[is.volume] <- vols
   
+  # If there are any NAs, impute mean
+  # ingredient.amts[is.na(as.numeric(ingredient.amts))] <- mean(as.numeric(vols), na.rm = TRUE)
+  
   return(as.numeric(ingredient.amts))
 }
 
 # Process all volumes
 vol.amts <- rapply(vol.amts, process.volumes, how="replace")
+
+vol.NAs <- rapply(vol.amts, is.na, how="replace")
+sum.NAs <- rapply(vol.NAs, sum, how="unlist")
+which(sum.NAs!=0)
+
+# baking soda canning jars with lids rings 
+# 14                          325
+
+vol.amts$`baking soda` # "1 small pinch"
+vol.amts$`canning jars with lids rings` "9 (1 pint)"  "3 (1 pint)"
+# Should remove things with all NAs
 
 ## CONVERTING RAW QUANTITIES ====================================================================
 
@@ -370,6 +417,14 @@ process.raw <- function(ingredient.amt) {
 # Process all raw quantities
 raw.amts <- rapply(raw.amts, process.raw, how="replace")
 
+raw.NAs <- rapply(raw.amts, is.na, how="replace")
+sum.NAs <- rapply(raw.NAs, sum, how="unlist")
+which(sum.NAs!=0)
+# lemons            bananas   jalapeno peppers              limes unbaked pie crusts    cinnamon sticks 
+# 4                  8                  9                 11                 22                 23 
+# romaine lettuce         toothpicks     wooden skewers 
+# 27                 30                 74 
+
 ## CONVERTING MIXED AMTS & SPECIAL UNITS ====================================================================
 
 is.mixed <- !(is.mostly.volumes+is.mostly.weights+is.mostly.raw)
@@ -384,7 +439,8 @@ mostly.special <- function(ingredient.amts) {
 }
 
 is.mostly.special <- rapply(mixed.amts, mostly.special, how="unlist")
-names(is.mostly.special[is.mostly.special==TRUE]) # [1] "garlic"      "bread"       "white bread"
+names(is.mostly.special[is.mostly.special==TRUE])
+# [1] "garlic"          "bread"           "american cheese" "white bread"     "rye bread"
 
 # Deal with special units
 process.special <- function(ingredient.amts, unit) {
