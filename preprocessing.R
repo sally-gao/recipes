@@ -104,18 +104,21 @@ wordsToRemove <- c("ground", "grated", "all-purpose", "melted", "minced", "softe
                    "bulk", "links", "no-stick", "nonstick", "fire-roasted", "gluten-free", "no-salt-added", "real",
                    "threads", "wheel", "center-cut", "dry-roasted", "fillets", "plus", "fully", "natural", "cleaned",
                    "new", "non-stick", "stick", "sticks", "aged", "box", "jigger", "jiggers", "packet", "part-skim",
-                   "scrubbed", "skin-on", "stripped", "lengthwise")
+                   "scrubbed", "skin-on", "stripped", "lengthwise", "petite", "splash", "slice", "defrosted", "split",
+                   "brisket", "fillet", "leftover")
 
 # pattern to match common phrases and anything in parentheses
-pattern <- "( to taste| as needed| cut into| room temperature| broken into| to cover| with juice| liquid reserved| juice reserved| with skin|individually wrapped| if needed| in juice | with peel | as desired | casings removed)|(\\(.*\\) ?)|( cut.*(strips|pieces|wedges|chunks|cubes|slices))"
-brands <- c("kraft", "criscoapillsbury besta", "pillsbury best", "pillsburya", "pillsbury", "werthers original", "goldhen",
+pattern <- "( to taste| as needed| cut into| room temperature| broken into| to cover| with juice| liquid reserved| juice reserved| with skin|individually wrapped| if needed| in juice| with peel| as desired| casings removed | in half)|(\\(.*\\) ?)|( cut.*(strips|pieces|wedges|chunks|cubes|slices))"
+
+# brand names
+brands <- c("kraft", "criscoa", "pillsbury besta", "pillsbury best", "pillsburya", "pillsbury", "werthers original", "goldhen",
             "huntsa", "land o lakes", "stonemill essentials", "bakers corner", "hersheyas", "hershey", "mccormicka",
             "mccormick", "delallo", "happy farms", "maillea", "maille", "tabascobrand", "lucky leaf", "ortegaa",
             "bob evansa", "bob evans", "reddi-wiporigina", "countryside creamery", "panko", "carlini", "dannon oikosa",
             "dannon oikos", "egglands best", "philadelphia brick", "dijon originale", "pamaoriginal", "athenos traditional",
             "jifa", "red delicious", "spice islands", "college inna", "contadina", "goya", "johnsonvillea", "johnsonville",
             "nestlea toll housea", "nestlea carnationa", "nestle", "planters", "friendly farms", "ghirardelli",
-            "hatfieldrecipe essentials", "hass", "musselmansa", "southern grove", "appleton farms", "bosc")
+            "hatfieldrecipe essentials", "hass", "musselmansa", "southern grove", "appleton farms", "bosc", "yukon gold")
 
 process_ingredients <- function(ingredient_str) {
   ingredient_str <- tolower(gsub(",|[*]", "", ingredient_str)) # remove commas and convert to lowercase
@@ -176,7 +179,7 @@ all_ingredients <- all_ingredients %>%
                select(ID, Servings) %>% 
                rename(recipe_id = ID)), by = "recipe_id", all.x = TRUE)
 
-# Select unique ingredients for which count > 4
+# Select unique ingredients for which count > 7
 selected_ingredients <- grouped_ingredients %>% 
   filter(count > 7)
 
@@ -186,7 +189,7 @@ amts <- sapply(selected_ingredients$ingredient, function(ingredient)
 
 # Which amts are mostly empty strings?
 percent.empty <- sapply(amts, function(x) {sum(x=="")/length(x)})
-which(percent.empty > .8)
+empties <- which(percent.empty > .8)
 # cooking spray       filling 
 # 53           383
 
@@ -206,7 +209,7 @@ mostly.volumes <- function(ingredient.amts) {
 }
 
 is.mostly.volumes <- rapply(amts, mostly.volumes, how="unlist")
-sum(is.mostly.volumes) # 390
+sum(is.mostly.volumes) # 288
 
 # Find all ingredients for which over 70% of amounts (not including "") are specified in weight
 mostly.weights <- function(ingredient.amts) {
@@ -216,7 +219,7 @@ mostly.weights <- function(ingredient.amts) {
 }
 
 is.mostly.weights <- rapply(amts, mostly.weights, how="unlist")
-sum(is.mostly.weights) # 137
+sum(is.mostly.weights) # 72
 
 # Find all ingredients for which over 70% of amounts (not including "") use the ingredient itself as the unit
 
@@ -240,12 +243,12 @@ mostly.raw <- function(ingredient.amts) {
 }
 
 is.mostly.raw <- rapply(amts, mostly.raw, how="unlist")
-sum(is.mostly.raw) # 74
+sum(is.mostly.raw) # 46
 
 # Find all ingredients for which amounts are specified in a mix of volumes, weights, or others
 mixed <- is.mostly.volumes+is.mostly.weights+is.mostly.raw
 mixed <- mixed[mixed==0]
-length(mixed) # 176 such ingredients to deal with
+length(mixed) # 123 such ingredients to deal with
 
 ## CONVERTING WEIGHTS ====================================================================
 
@@ -311,7 +314,7 @@ process.weights <- function(ingredient.amts) {
   ingredient.amts[is.weight] <- weights
   
   # If there are any NAs, impute mean
-  # ingredient.amts[is.na(as.numeric(ingredient.amts))] <- mean(as.numeric(weights), na.rm = TRUE)
+  ingredient.amts[is.na(as.numeric(ingredient.amts))] <- mean(as.numeric(weights), na.rm = TRUE)
   
   return(as.numeric(ingredient.amts))
 }
@@ -319,14 +322,9 @@ process.weights <- function(ingredient.amts) {
 # Process all weights
 weights.amts <- rapply(weights.amts, process.weights, how="replace")
 
-weights.NAs <- rapply(weights.amts, is.na, how="replace")
-sum.NAs <- rapply(weights.NAs, sum, how="unlist")
-which(sum.NAs!=0)
-# beef chuck     salmon 
-# 32         73 
-
-weights.amts$`beef chuck` # "1 (3 1/2) pound"
-weights.amts$salmon # "1 whole (5 pound)"
+# weights.NAs <- rapply(weights.amts, is.na, how="replace")
+# sum.NAs <- rapply(weights.NAs, sum, how="unlist")
+# which(sum.NAs!=0)
 
 ## CONVERTING VOLUMES ====================================================================
 
@@ -380,7 +378,7 @@ process.volumes <- function(ingredient.amts) {
   ingredient.amts[is.volume] <- vols
   
   # If there are any NAs, impute mean
-  # ingredient.amts[is.na(as.numeric(ingredient.amts))] <- mean(as.numeric(vols), na.rm = TRUE)
+  ingredient.amts[is.na(as.numeric(ingredient.amts))] <- mean(as.numeric(vols), na.rm = TRUE)
   
   return(as.numeric(ingredient.amts))
 }
@@ -388,16 +386,9 @@ process.volumes <- function(ingredient.amts) {
 # Process all volumes
 vol.amts <- rapply(vol.amts, process.volumes, how="replace")
 
-vol.NAs <- rapply(vol.amts, is.na, how="replace")
-sum.NAs <- rapply(vol.NAs, sum, how="unlist")
-which(sum.NAs!=0)
-
-# baking soda canning jars with lids rings 
-# 14                          325
-
-vol.amts$`baking soda` # "1 small pinch"
-vol.amts$`canning jars with lids rings` "9 (1 pint)"  "3 (1 pint)"
-# Should remove things with all NAs
+# vol.NAs <- rapply(vol.amts, is.na, how="replace")
+# sum.NAs <- rapply(vol.NAs, sum, how="unlist")
+# which(sum.NAs!=0)
 
 ## CONVERTING RAW QUANTITIES ====================================================================
 
@@ -409,7 +400,10 @@ process.raw <- function(ingredient.amt) {
   ingredient.amt[!grepl("[a-z]+", ingredient.amt)] <- quantities
   
   # Impute mean for non-raw quantities
-  ingredient.amt[grepl("[a-z]+", ingredient.amt)] <- mean(as.numeric(quantities))
+  ingredient.amt[grepl("[a-z]+", ingredient.amt)] <- mean(as.numeric(quantities), na.rm=TRUE)
+  
+  # Impute mean for NAs
+  ingredient.amt[is.na(as.numeric(ingredient.amt))] <- mean(as.numeric(quantities), na.rm = TRUE)
   
   return(as.numeric(ingredient.amt))
 }
@@ -417,13 +411,9 @@ process.raw <- function(ingredient.amt) {
 # Process all raw quantities
 raw.amts <- rapply(raw.amts, process.raw, how="replace")
 
-raw.NAs <- rapply(raw.amts, is.na, how="replace")
-sum.NAs <- rapply(raw.NAs, sum, how="unlist")
-which(sum.NAs!=0)
-# lemons            bananas   jalapeno peppers              limes unbaked pie crusts    cinnamon sticks 
-# 4                  8                  9                 11                 22                 23 
-# romaine lettuce         toothpicks     wooden skewers 
-# 27                 30                 74 
+# raw.NAs <- rapply(raw.amts, is.na, how="replace")
+# sum.NAs <- rapply(raw.NAs, sum, how="unlist")
+# which(sum.NAs!=0)
 
 ## CONVERTING MIXED AMTS & SPECIAL UNITS ====================================================================
 
@@ -440,7 +430,7 @@ mostly.special <- function(ingredient.amts) {
 
 is.mostly.special <- rapply(mixed.amts, mostly.special, how="unlist")
 names(is.mostly.special[is.mostly.special==TRUE])
-# [1] "garlic"          "bread"           "american cheese" "white bread"     "rye bread"
+# [1] "garlic"      "bread"       "white bread"
 
 # Deal with special units
 process.special <- function(ingredient.amts, unit) {
@@ -458,11 +448,13 @@ mixed.amts$`white bread` <- process.special(mixed.amts$`white bread`, "slice")
 # Dealing with mixed amounts
 mixed.names <- names(mixed.amts[!is.mostly.special])
 
+# old.chart <- read_csv("mixed_chart.csv")
 # mixed.chart <- tibble(ingredient = mixed.names)
-# write_csv(mixed.chart, "mixed_chart.csv", col_names = TRUE)
+# mixed.chart <- mixed.chart %>% merge(old.chart, by="ingredient", all.x = TRUE)
+# write_csv(mixed.chart, "mixed_chart_expanded.csv", col_names = TRUE)
 
 # Import manually researched conversion chart
-mixed.chart <- read_csv("mixed_chart.csv")
+mixed.chart <- read_csv("mixed_chart_expanded.csv")
 mixed.chart$oz <- mixed.chart$grams*0.035274
 
 process.mixed <- function(ingredient.amts, ingredient.name) {
@@ -495,6 +487,10 @@ mixed.amts[!is.mostly.special] <- mapply(process.mixed,
                                          ingredient.name = mixed.names,
                                          ingredient.amt = rapply(mixed.amts[!is.mostly.special],
                                                                  function(x) {return(x)}, how="replace"))
+
+# mixed.NAs <- rapply(mixed.amts, is.na, how="replace")
+# sum.NAs <- rapply(mixed.NAs, sum, how="unlist")
+# which(sum.NAs!=0)
 
 ## UPDATE AMTS ====================================================================
 
@@ -538,8 +534,23 @@ for (name in names(amts)) {
 }
 
 # Filter out recipes that don't have at least 3 ingredients
-at.least.three.ingredients <- apply(dtm, MARGIN=1, FUN=function(row) {sum(is.na(row[6:428])) < 421})
+at.least.three.ingredients <- apply(dtm, MARGIN=1, FUN=function(row) {sum(is.na(row[6:534])) < 527})
+sum(at.least.three.ingredients) # 5051
+
+at.least.four.ingredients <- apply(dtm, MARGIN=1, FUN=function(row) {sum(is.na(row[6:534])) < 526})
+sum(at.least.four.ingredients) # 4756
+
+selected_recipes <- all_ingredients %>% 
+  group_by(recipe_id) %>% 
+  summarise(count=n()) %>% 
+  arrange(count)
+
+sum(selected_recipes$count < 3) # 53
+sum(selected_recipes$count < 4) # 211
+summary(selected_recipes$count)
+# Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+# 1.000   6.000   9.000   9.084  11.000  28.000 
 
 dtm <- dtm %>% filter(at.least.three.ingredients)
 
-# write_csv(dtm, "dtm.csv", col_names=TRUE)
+# write_csv(dtm, "dtm2.csv", col_names=TRUE)
